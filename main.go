@@ -2,37 +2,34 @@ package main
 
 import (
     "flag"
+    "log"
     "net/http"
+
     "github.com/prometheus/client_golang/prometheus"
     "github.com/prometheus/client_golang/prometheus/promhttp"
-    "github.com/prometheus/common/version"
-    log "github.com/sirupsen/logrus"
+)
+
+var (
+    listenAddress = flag.String("web.listen-address", ":9888", "Address to listen on for web interface.")
+    metricPath    = flag.String("web.metrics-path", "/metrics", "Path under which to expose metrics.")
 )
 
 func main() {
-    // =====================
-    // Get OS parameter
-    // =====================
-    var bind string
-    flag.StringVar(&bind, "bind", "0.0.0.0:9104", "bind")
-    flag.Parse()
+    log.Fatal(serverMetrics(*listenAddress, *metricPath))
+}
 
-    // ========================
-    // Regist handler
-    // ========================
-    prometheus.Register(version.NewCollector("query_exporter"))
-
-    // Regist http handler
-    http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-        h := promhttp.HandlerFor(prometheus.Gatherers{
-            prometheus.DefaultGatherer,
-        }, promhttp.HandlerOpts{})
-        h.ServeHTTP(w, r)
+func serverMetrics(listenAddress, metricsPath string) error {
+    http.Handle(metricsPath, promhttp.Handler())
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte(`
+            <html>
+            <head><title>Volume Exporter Metrics</title></head>
+            <body>
+            <h1>ConfigMap Reload</h1>
+            <p><a href='` + metricsPath + `'>Metrics</a></p>
+            </body>
+            </html>
+        `))
     })
-
-    // start server
-    log.Infof("Starting http server - %s", bind)
-    if err := http.ListenAndServe(bind, nil); err != nil {
-        log.Errorf("Failed to start http server: %s", err)
-    }
+    return http.ListenAndServe(listenAddress, nil)
 }
